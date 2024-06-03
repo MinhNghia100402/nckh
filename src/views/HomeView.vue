@@ -15,7 +15,7 @@
               </div>
             </div>
           </div>
-          <p>READ THE SENTENCES ALOUD</p>
+          <!-- <p>READ THE SENTENCES ALOUD</p> -->
           <div class="content">
             <p>{{ currentSentence }}</p>
           </div>
@@ -39,7 +39,7 @@
             <div class="icon-mic" :class="{ 'recording': isRecording }" @click="toggleRecording">
               <IconMic />
             </div>
-            <div class="ear">
+            <div class="ear" @click="playAudio">
               <IconEar />
             </div>
           </div>
@@ -49,8 +49,8 @@
     <div class="footer">
       <div class="divider"></div>
       <div class="button-container">
-        <button @click="previousSentence">Quay lại</button>
-        <button @click="nextSentence">Bỏ qua</button>
+        <button @click="previousSentence">PREVIOUS</button>
+        <button @click="nextSentence">NEXT</button>
       </div>
     </div>
   </div>
@@ -72,7 +72,9 @@ export default {
   },
   data() {
     return {
-      apiData: [],
+      apiData:[],
+      text:[],
+      audio: [],
       currentIndex: 0,
       progress: 0,
       isRecording: false,
@@ -85,11 +87,12 @@ export default {
       getalldata: false,
       length_data: 0,
       wavesurfer: null,
+      animationFrameId: null,
     };
   },
   computed: {
     currentSentence() {
-      return this.apiData[this.currentIndex] || '';
+      return this.text[this.currentIndex] || '';
     }
   },
   created() {
@@ -102,13 +105,12 @@ export default {
     initWaveSurfer() {
       this.wavesurfer = WaveSurfer.create({
         container: '#waveform',
-        waveColor: 'violet',
-        progressColor: 'purple',
-        cursorColor: 'red',
-        cursorWidth: 2,
-        height: 128,
+        waveColor: 'red',
+        progressColor: '#4CAF50',
+        cursorWidth: 0,
+        height:100,
         responsive: true,
-        backend: 'WebAudio'
+        backend: 'WebAudio',
       });
 
       this.wavesurfer.on('ready', () => {
@@ -129,6 +131,15 @@ export default {
         this.$refs.audioPlayer.src = audioUrl;
         this.$refs.audioPlayer.play();
         this.wavesurfer.load(audioUrl);
+
+        this.wavesurfer.on('ready', () => {
+          this.wavesurfer.play();
+          this.startAnimation();
+        });
+
+        this.wavesurfer.on('finish', () => {
+          this.stopAnimation();
+        });
       } else {
         console.error('Không có file âm thanh ghi được.');
       }
@@ -142,7 +153,7 @@ export default {
       }
     },
     startRecording() {
-      navigator.mediaDevices.getUserMedia({ audio: true })
+        navigator.mediaDevices.getUserMedia({ audio: true })
         .then(stream => {
           this.mediaRecorder = new MediaRecorder(stream);
           this.recordedChunks = [];
@@ -156,6 +167,7 @@ export default {
           console.error('Lỗi truy cập microphone:', error);
         });
     },
+
     stopRecording() {
       if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
         this.mediaRecorder.stop();
@@ -168,6 +180,7 @@ export default {
         this.recordedAudio = recordedBlob;
         let formData = new FormData();
         formData.append('audio', recordedBlob);
+        formData.append('text',currentSentence())
         try {
           const response = await axios.post('/api/save_audio', formData, {
             headers: {
@@ -185,42 +198,63 @@ export default {
     async fetchData() {
       try {
         const response = await axios.get('/api/getall');
-        this.apiData = response.data.data;
-        console.log(this.apiData);
-        this.length_data = this.apiData.length;
+        this.text = response.data.text;
+        this.audio = response.data.audio;
+        this.length_data = this.text.length;
+        console.log(this.text, this.audio);
       } catch (error) {
         console.error('Lỗi khi lấy dữ liệu:', error);
       }
     },
     nextSentence() {
-      if (this.currentIndex < this.apiData.length - 1) {
+      if (this.currentIndex < this.text.length - 1) {
         this.currentIndex++;
-        this.progress = (this.currentIndex / this.apiData.length) * 100;
+        this.progress = (this.currentIndex / this.text.length) * 100;
       }
     },
     previousSentence() {
       if (this.currentIndex > 0) {
         this.currentIndex--;
-        this.progress = (this.currentIndex / this.apiData.length) * 100;
+        this.progress = (this.currentIndex / this.text.length) * 100;
+      }
+    },
+    updateProgress() {
+      const currentTime = this.wavesurfer.getCurrentTime();
+      const duration = this.wavesurfer.getDuration();
+    },
+    startAnimation() {
+      const animate = () => {
+        this.updateProgress();
+        this.animationFrameId = requestAnimationFrame(animate);
+      };
+      this.animationFrameId = requestAnimationFrame(animate);
+    },
+    stopAnimation() {
+      if (this.animationFrameId) {
+        cancelAnimationFrame(this.animationFrameId);
+        this.animationFrameId = null;
       }
     },
   },
-  onAudioTimeUpdate() {
-  const currentTime = this.$refs.audioPlayer.currentTime;
-  const duration = this.$refs.audioPlayer.duration;
-  this.progress = (currentTime / duration) * 100;
-},
-
+  beforeDestroy() {
+    if (this.wavesurfer) {
+      this.wavesurfer.destroy();
+    }
+    this.stopAnimation();
+  },
+  playAudio() {
+      if (this.audio.length > 0 && this.currentIndex >= 0 && this.currentIndex < this.audio.length) {
+        const audioUrl = `data:audio/wav;base64,${this.audio[this.currentIndex]}`;
+        const audio = new Audio(audioUrl);
+        audio.play();
+        console.log('phat aâm thanh');
+      } else {
+        console.error('Không có file âm thanh hoặc index không hợp lệ.');
+      }
+    },
 };
 </script>
-
 <style scoped>
 /* CSS cho giao diện */
 @import url('./../assets/home.css');
-
-#waveform {
-  width: 100%;
-  height: 128px; /* hoặc bất kỳ chiều cao nào bạn muốn */
-  background-color: #f0f0f0; /* màu nền để dễ nhìn hơn */
-}
 </style>

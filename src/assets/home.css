@@ -52,10 +52,14 @@
     
   }
   .content {
+    padding-top: 30px;
     margin-bottom: 20px;
     background-color: rgb(255, 255, 255);
     width: 700px;
     height: 200px;
+    font-size: 20px;
+    display: flex;
+    justify-content: center;
     /* border: 1px solid rgb(0, 0, 0); */
   }
   
@@ -269,5 +273,9 @@
 .menu-content button:active {
   transform: scale(0.95); /* Add slight shrink effect when clicked */
 }
-
-
+#waveform {
+  width: 100%;
+  height: 100px; 
+  background-color: #ffffff; 
+  border-radius: 10px;
+}
